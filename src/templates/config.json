@@ -106,7 +106,8 @@
         "gemini": 1200,
         "opencode": 1200,
         "cursor": 800,
-        "antigravity": 1200
+        "antigravity": 1200,
+        "grok": 1200
       }
     },
     "visibility": {"mode": "quiet"},

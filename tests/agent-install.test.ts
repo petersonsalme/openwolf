@@ -226,3 +226,56 @@ describe("antigravity adapter hooks.json", { skip: !haveDist ? "dist not built" 
     assert.strictEqual(written.openwolf.Stop.length, 1);
   });
 });
+
+// Antigravity's own docs (bundled with the CLI: builtin/skills/agy-customizations
+// /docs/rules.md) document GEMINI.md and AGENTS.md as equally valid, interchangeable
+// "Directory-Based Rules" files with no precedence between them. The adapter reuses
+// whichever the project already has and defaults to AGENTS.md, matching every other
+// agent adapter's context-file convention (Codex, OpenCode) for portability.
+describe("antigravity adapter context file", { skip: !haveDist ? "dist not built" : false }, () => {
+  test("no existing GEMINI.md or AGENTS.md: defaults to AGENTS.md", async () => {
+    const antigravityAdapter = await loadAntigravityAdapter();
+    const ctx = project();
+    const result = antigravityAdapter.install(ctx);
+    assert.ok(fs.existsSync(path.join(ctx.projectRoot, "AGENTS.md")));
+    assert.ok(!fs.existsSync(path.join(ctx.projectRoot, "GEMINI.md")));
+    assert.ok(result.actions.some((a: string) => a.includes("AGENTS.md updated")));
+  });
+
+  test("a pre-existing GEMINI.md is reused instead of creating AGENTS.md", async () => {
+    const antigravityAdapter = await loadAntigravityAdapter();
+    const ctx = project();
+    fs.writeFileSync(path.join(ctx.projectRoot, "GEMINI.md"), "# Project rules\n\nSome existing content.\n", "utf-8");
+
+    const result = antigravityAdapter.install(ctx);
+
+    assert.ok(!fs.existsSync(path.join(ctx.projectRoot, "AGENTS.md")), "must not create a second context file");
+    const gemini = fs.readFileSync(path.join(ctx.projectRoot, "GEMINI.md"), "utf-8");
+    assert.ok(gemini.includes("Some existing content."), "user content preserved");
+    assert.ok(gemini.includes("<!-- openwolf:begin -->"), "OpenWolf block added");
+    assert.ok(result.actions.some((a: string) => a.includes("GEMINI.md updated")));
+  });
+});
+
+// src/hooks/session-start.ts resolves a per-agent context budget via
+// ctx.budgets?.[agent], falling back to a generic default when an agent has
+// no entry. That fallback is silent, so a registered adapter can go without
+// its own tuned budget indefinitely without any install or test failing.
+// This guards every adapter in the registry, not just antigravity: it would
+// have caught the antigravity budget being left out when the adapter shipped.
+describe("context.budgets covers every registered agent adapter", { skip: !haveDist ? "dist not built" : false }, () => {
+  test("src/templates/config.json has a budget entry for each agent adapter", async () => {
+    const ROOT = path.resolve(import.meta.dirname ?? ".", "..");
+    const { availableAgents } = await import(pathToFileURL(DIST_AGENTS).href);
+    const template = JSON.parse(fs.readFileSync(path.join(ROOT, "src", "templates", "config.json"), "utf-8"));
+    const budgets = template.openwolf.context.budgets;
+
+    for (const agent of availableAgents() as string[]) {
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(budgets, agent),
+        `context.budgets in src/templates/config.json is missing an entry for "${agent}"`,
+      );
+      assert.strictEqual(typeof budgets[agent], "number");
+    }
+  });
+});
