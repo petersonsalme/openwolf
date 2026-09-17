@@ -20,7 +20,7 @@ openwolf init
 openwolf init --agent claude codex opencode
 ```
 
-Grok Build can use `--agent grok` with enabled Claude-compatible hooks. Cursor, Gemini CLI and Antigravity receive project instructions only. See [agent hook coverage](hooks.md).
+Grok Build can use `--agent grok` with enabled Claude-compatible hooks. Antigravity can use `--agent antigravity` with a bridged hook adapter (`.agents/hooks.json`). Cursor and Gemini CLI receive project instructions only. See [agent hook coverage](hooks.md).
 
 ## Check the installation
 

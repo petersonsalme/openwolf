@@ -12,7 +12,8 @@ Agent support is different across products and versions. A registered hook is no
 | Codex CLI | `.codex/hooks.json` and `AGENTS.md` | Requires hook support, enabled settings and project trust. Tool names and payloads can differ by version. |
 | OpenCode | Native plugin and `AGENTS.md` | Uses session and tool events. It does not implement every Claude hook feature. |
 | Grok Build | Enabled Claude-compatible discovery | Uses the existing registration. OpenWolf activity notices are dashboard-only. |
-| Cursor, Gemini CLI, Antigravity | Project instruction files | No full hook integration or equivalent usage coverage is claimed. |
+| Antigravity | `.agents/hooks.json` bridge and `AGENTS.md` | A bridge script (`antigravity-bridge.js`) translates Antigravity's camelCase tool events (`view_file`, `write_to_file`, `replace_file_content`, `run_command`) and `PreInvocation`/`Stop` events to OpenWolf's read/write/bash and session-start/stop hooks. Does not cover `user-prompt-submit`, `post-batch` or `precompact`; those have no Antigravity equivalent. |
+| Cursor, Gemini CLI | Project instruction files | No full hook integration or equivalent usage coverage is claimed. |
 
 See [release validation](release-2.5.2.md) for the native versions that were checked.
 
