@@ -6,7 +6,7 @@ Run commands from the project directory unless a command explicitly selects regi
 
 ```bash
 openwolf init
-openwolf init --agent claude codex opencode
+openwolf init --agent claude codex opencode antigravity
 openwolf status
 openwolf status --all
 openwolf operations doctor

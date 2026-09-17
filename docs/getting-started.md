@@ -17,7 +17,7 @@ openwolf init
 `init` detects installed agents, creates project files and scans eligible source files. To select agents yourself:
 
 ```bash
-openwolf init --agent claude codex opencode
+openwolf init --agent claude codex opencode antigravity
 ```
 
 Grok Build can use `--agent grok` with enabled Claude-compatible hooks. Antigravity can use `--agent antigravity` with a bridged hook adapter (`.agents/hooks.json`). Cursor and Gemini CLI receive project instructions only. See [agent hook coverage](hooks.md).

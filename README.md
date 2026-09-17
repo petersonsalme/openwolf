@@ -66,7 +66,7 @@ openwolf init
 
 `init` detects installed agents and sets up their project integration.
 Complete any project or hook trust review shown by your agent, then start a
-new session. You can select agents with `--agent claude codex opencode`.
+new session. You can select agents with `--agent claude codex opencode antigravity`.
 
 ## Supported agents
 
