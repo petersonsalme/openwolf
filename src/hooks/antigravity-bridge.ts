@@ -25,9 +25,13 @@ const TOOL_NAME_MAP: Record<string, string> = {
 // temp dir) and written via a uniquely-named tmp file + rename so a
 // pre-planted symlink at the cache path can't be used to read or overwrite
 // an arbitrary file.
-function getCachePath(workspaceRoot: string, conversationId: string): string {
+function getCachePath(workspaceRoot: string, conversationId: string, stepIdx: unknown): string {
   const safeId = (conversationId || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
-  return path.join(workspaceRoot, ".wolf", "cache", `antigravity-last-tool-${safeId}.json`);
+  // Keyed by stepIdx too: two tool calls in the same conversation can be
+  // in flight at once, and without this a PostToolUse for one call could
+  // pick up the cache entry another call just clobbered.
+  const stepKey = typeof stepIdx === "number" || typeof stepIdx === "string" ? String(stepIdx) : "unknown";
+  return path.join(workspaceRoot, ".wolf", "cache", `antigravity-last-tool-${safeId}-${stepKey}.json`);
 }
 
 function writeCacheFile(cacheFile: string, data: unknown): void {
@@ -179,7 +183,7 @@ async function main(): Promise<void> {
   const workspaceRoot = (agiPayload.workspacePaths && agiPayload.workspacePaths[0]) || PROJECT_ROOT;
   const tc = agiPayload.toolCall || {};
   const toolName = tc.name || "";
-  const cacheFile = getCachePath(workspaceRoot, conversationId);
+  const cacheFile = getCachePath(workspaceRoot, conversationId, agiPayload.stepIdx);
 
   if (event === "PreToolUse") {
     const wolfToolName = TOOL_NAME_MAP[toolName] || toolName;
@@ -235,6 +239,13 @@ async function main(): Promise<void> {
       if (fs.existsSync(cacheFile)) {
         cached = JSON.parse(fs.readFileSync(cacheFile, "utf-8"));
       }
+    } catch {}
+    // Cache is keyed by stepIdx already, but a killed/timed-out PreToolUse
+    // can leave a stale entry that a later invocation reuses; belt-and-
+    // suspenders check the stepIdx recorded in the cache matches this event.
+    if (cached && cached.stepIdx !== agiPayload.stepIdx) cached = null;
+    try {
+      fs.unlinkSync(cacheFile);
     } catch {}
 
     if (cached && !agiPayload.error) {
