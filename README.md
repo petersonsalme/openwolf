@@ -230,6 +230,7 @@ openwolf report             Review operational records and usage
 openwolf usage report       Report available provider token counters
 openwolf handoff list       Find saved Claude and Codex sessions
 openwolf handoff search <q> Search saved task evidence
+openwolf finalize           Manually close a session for agents with no auto session-end
 openwolf memory archive     Archive eligible older session notes
 openwolf bench              Compare supported tasks (--yes required)
 openwolf bug search <term>  Search known problems and fixes

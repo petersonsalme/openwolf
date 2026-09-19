@@ -76,6 +76,16 @@ openwolf handoff search "expired session"
 
 Recovery uses saved records when observations are missing. Search returns relevant saved evidence. See [handover details](claude-codex-handoff-plan.md).
 
+## Close an Antigravity session
+
+Antigravity has no automatic session-end event: its `Stop` mapping fires every turn, not once at session close, so the ledger's final flush and the "Session end" line in `memory.md` need an explicit close:
+
+```bash
+openwolf finalize --agent antigravity --session SESSION_ID
+```
+
+Run it after the final turn of an Antigravity session. It is safe to run more than once; a session that is already finalized reports `finalized: false`.
+
 ## Session notes and archives
 
 ```bash

@@ -1,4 +1,5 @@
 import {addHandoffCommands} from "./handoff.js";
+import {addFinalizeCommand} from "./finalize.js";
 import { logSessionMemory } from "../hooks/session-memory.js";
 import { reviewMemory, approveMemory, revokeMemory } from "./memory-review.js";
 import { usageReport, reconcileUsage } from "../tracker/usage-report.js";
@@ -33,6 +34,7 @@ function getVersion(): string {
 export function createProgram(): Command {
   const program = new Command();
   addHandoffCommands(program);
+  addFinalizeCommand(program);
 
   program
     .name("openwolf")
