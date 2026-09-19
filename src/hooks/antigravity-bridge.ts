@@ -126,6 +126,18 @@ function translateResponse(toolName: string, resp: Record<string, any> = {}): Re
   return resp;
 }
 
+// process.stdout.write() can return before a large payload is actually
+// flushed (a pipe write can be async under backpressure), so exiting right
+// after calling it truncates output over ~64KB — including a `deny`
+// decision. Exit from the write's own callback instead. Callers must
+// `return` immediately after calling this (it doesn't halt execution the
+// way process.exit() alone would).
+function writeAndExit(obj: unknown): void {
+  process.stdout.write(JSON.stringify(obj), () => process.exit(0));
+  // Backstop in case the callback never fires (e.g. stdout already closed).
+  setTimeout(() => process.exit(0), 3000).unref();
+}
+
 function readAllStdin(): Promise<string> {
   return new Promise((resolve) => {
     let settled = false;
@@ -246,26 +258,20 @@ async function main(): Promise<void> {
 
     const specific = outputObj.hookSpecificOutput || {};
     if (specific.permissionDecision === "block" || specific.permissionDecision === "deny") {
-      process.stdout.write(
-        JSON.stringify({
-          decision: "deny",
-          reason: specific.permissionDecisionReason || "Blocked by OpenWolf rule",
-        })
-      );
-      process.exit(0);
+      writeAndExit({
+        decision: "deny",
+        reason: specific.permissionDecisionReason || "Blocked by OpenWolf rule",
+      });
+      return;
     }
 
     if (specific.additionalContext) {
-      process.stdout.write(
-        JSON.stringify({
-          reason: specific.additionalContext,
-        })
-      );
-      process.exit(0);
+      writeAndExit({ reason: specific.additionalContext });
+      return;
     }
 
-    process.stdout.write(JSON.stringify({}));
-    process.exit(0);
+    writeAndExit({});
+    return;
   }
 
   if (event === "PostToolUse") {
@@ -294,8 +300,8 @@ async function main(): Promise<void> {
       await runWolfHook(wolfScript, wolfInput, workspaceRoot, hookTimeoutMs(event, subtype));
     }
 
-    process.stdout.write(JSON.stringify({}));
-    process.exit(0);
+    writeAndExit({});
+    return;
   }
 
   if (event === "PreInvocation") {
@@ -311,21 +317,15 @@ async function main(): Promise<void> {
 
       const specific = outputObj.hookSpecificOutput || {};
       if (specific.additionalContext) {
-        process.stdout.write(
-          JSON.stringify({
-            injectSteps: [
-              {
-                ephemeralMessage: specific.additionalContext,
-              },
-            ],
-          })
-        );
-        process.exit(0);
+        writeAndExit({
+          injectSteps: [{ ephemeralMessage: specific.additionalContext }],
+        });
+        return;
       }
     }
 
-    process.stdout.write(JSON.stringify({ injectSteps: [] }));
-    process.exit(0);
+    writeAndExit({ injectSteps: [] });
+    return;
   }
 
   if (event === "Stop") {
@@ -334,15 +334,14 @@ async function main(): Promise<void> {
       transcript_path: agiPayload.transcriptPath,
     };
     await runWolfHook("stop.js", wolfInput, workspaceRoot, hookTimeoutMs(event, subtype));
-    process.stdout.write(JSON.stringify({}));
-    process.exit(0);
+    writeAndExit({});
+    return;
   }
 
-  process.stdout.write(JSON.stringify({}));
-  process.exit(0);
+  writeAndExit({});
+  return;
 }
 
 main().catch(() => {
-  process.stdout.write(JSON.stringify({}));
-  process.exit(0);
+  writeAndExit({});
 });
