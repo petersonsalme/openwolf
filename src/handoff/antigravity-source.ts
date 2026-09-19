@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {reconcileActive} from '../hooks/handoff-state.js';
+import {reconcileActive, activeFile} from '../hooks/handoff-state.js';
 import type {EventKind,EvidenceEvent,SessionMeta,SessionRead,SessionSource} from './types.js';
 
 // Antigravity has no decodable session transcript (its native conversation
@@ -23,15 +23,32 @@ function toEventKind(kind:string):EventKind {
 export class AntigravitySessions implements SessionSource {
   constructor(private root:string){}
   async list():Promise<{sessions:SessionMeta[];gaps:string[]}> {
+    // A session's identity can exist only as an unreconciled <hash>.json.events/
+    // dir (queueCheckpoint never writes the plain <hash>.json itself) until
+    // something reconciles it, so a first session must be discovered from
+    // either form — mirrors service.ts's listActive().
     const dir=activeDir(this.root);let names:string[]=[];
-    try{names=fs.readdirSync(dir).filter(n=>n.endsWith('.json')&&!n.endsWith('.json.events'))}catch{}
-    const sessions:SessionMeta[]=[];
+    try{names=fs.readdirSync(dir)}catch{}
+    const identities=new Map<string,{agent:string;session:string}>();
     for(const n of names){
       try{
-        const file=path.join(dir,n);const state=JSON.parse(fs.readFileSync(file,'utf8'));
-        if(state.agent!=='antigravity'||!state.session)continue;
-        sessions.push({agent:'antigravity',id:state.session,title:(state.objective||'(no objective captured)').slice(0,120),cwd:this.root,file,updated_at:state.updated_at||new Date(0).toISOString(),sidechain:false});
+        if(n.endsWith('.json.events')){
+          const first=fs.readdirSync(path.join(dir,n)).find(f=>f.endsWith('.json'));
+          if(!first)continue;
+          const e=JSON.parse(fs.readFileSync(path.join(dir,n,first),'utf8'));
+          if(e.agent&&e.session)identities.set(e.agent+':'+e.session,{agent:e.agent,session:e.session});
+        }else if(n.endsWith('.json')){
+          const state=JSON.parse(fs.readFileSync(path.join(dir,n),'utf8'));
+          if(state.agent&&state.session)identities.set(state.agent+':'+state.session,{agent:state.agent,session:state.session});
+        }
       }catch{}
+    }
+    const sessions:SessionMeta[]=[];
+    for(const {agent,session} of identities.values()){
+      if(agent!=='antigravity')continue;
+      const state=reconcileActive(this.root,agent,session);
+      if(!state.updated_at)continue;
+      sessions.push({agent:'antigravity',id:session,title:(state.objective||'(no objective captured)').slice(0,120),cwd:this.root,file:activeFile(this.root,agent,session),updated_at:state.updated_at,sidechain:false});
     }
     const gaps=sessions.length?[]:['No antigravity checkpoint state found; Antigravity conversation text is not decoded, so evidence exists only after hooks have captured a session'];
     return {sessions:sessions.sort((a,b)=>b.updated_at.localeCompare(a.updated_at)),gaps};
