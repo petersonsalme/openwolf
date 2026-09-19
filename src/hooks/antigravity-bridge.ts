@@ -72,6 +72,24 @@ function translateArgs(toolName: string, args: Record<string, any> = {}): Record
   }
 }
 
+// The PostToolUse payload's result shape isn't documented; try the field
+// names Antigravity's PreToolUse args use the camelCase/PascalCase sibling
+// of, falling back gracefully. post-bash.js requires {stdout, stderr}.
+function extractToolResponse(agiPayload: Record<string, any>, tc: Record<string, any>): Record<string, any> {
+  return tc.response || tc.result || agiPayload.toolResponse || agiPayload.response || agiPayload.result || {};
+}
+
+function translateResponse(toolName: string, resp: Record<string, any> = {}): Record<string, any> {
+  if (toolName === "run_command") {
+    return {
+      stdout: resp.Output ?? resp.output ?? resp.Stdout ?? resp.stdout ?? "",
+      stderr: resp.Error ?? resp.error ?? resp.Stderr ?? resp.stderr ?? "",
+      exit_code: resp.ExitCode ?? resp.exitCode ?? resp.exit_code,
+    };
+  }
+  return resp;
+}
+
 function readAllStdin(): Promise<string> {
   return new Promise((resolve) => {
     let settled = false;
@@ -225,6 +243,7 @@ async function main(): Promise<void> {
         session_id: conversationId,
         tool_name: cached.wolfToolName,
         tool_input: cached.toolInput,
+        tool_response: translateResponse(cached.toolName, extractToolResponse(agiPayload, tc)),
       };
       await runWolfHook(wolfScript, wolfInput, workspaceRoot);
     }
