@@ -16,9 +16,28 @@ export function addFinalizeCommand(program: Command): void {
       if (!NO_AUTO_SESSION_END_AGENTS.includes(opts.agent)) {
         throw new Error(`Unknown finalize agent: ${opts.agent}. Only agents without an automatic SessionEnd hook need this command.`);
       }
-      process.env.OPENWOLF_PROJECT_ROOT = findProjectRoot();
+      const root = findProjectRoot();
+      process.env.OPENWOLF_PROJECT_ROOT = root;
       const { finalizeSession } = await import("../hooks/session-end.js");
-      const result = await finalizeSession({ session_id: opts.session });
+      const hookInput = { session_id: opts.session };
+      let result;
+      try {
+        result = await finalizeSession(hookInput);
+      } catch (err) {
+        const { recordHeartbeat } = await import("../hooks/shared.js");
+        recordHeartbeat("session-end", err);
+        throw err;
+      }
+      // finalizeSession() only does the ledger/memory.md work; mirror the
+      // rest of what hookMain() does for a normal session-end hook run
+      // (heartbeat + handoff checkpoint observation), since this command
+      // bypasses hookMain entirely.
+      const { recordHeartbeat } = await import("../hooks/shared.js");
+      const { observeCheckpoint } = await import("../hooks/handoff-state.js");
+      recordHeartbeat("session-end");
+      try {
+        observeCheckpoint(root, opts.agent, "session-end", hookInput);
+      } catch {}
       console.log(JSON.stringify(result, null, 2));
     });
 }
