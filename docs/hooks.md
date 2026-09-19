@@ -22,6 +22,8 @@ See [release validation](release-2.5.2.md) for the native versions that were che
 - **Saved context only injects on the first model call.** The bridge maps `PreInvocation` to `session-start.js` only when `invocationNum === 1`. Antigravity does not re-emit `PreInvocation` with saved-context injection support on later model calls within the same session, so a handoff or checkpoint that becomes available after the first call is not automatically surfaced; use `openwolf handoff recover --from antigravity --session <id>` (or re-check `openwolf handoff list`) to pull it in manually.
 - **`Stop` is a per-turn boundary, not a true session end.** Antigravity has no dedicated session-end event, so the bridge's `Stop` mapping runs `stop.js` (an idempotent per-turn ledger flush) on every turn, never `session-end.js`. The one-time "Session end" line in `memory.md` and the session's `ended` timestamp are therefore never written automatically. Run `openwolf finalize --agent antigravity --session <id>` after the final turn to write them.
 
+Antigravity sessions participate in `openwolf handoff` (`checkpoint`, `list`, `read`, `recover`, `export`, `import`) through the same hook-captured checkpoint state the bridge already accumulates. Because Antigravity's own conversation transcript is not decoded, a packet exported *from* an antigravity session has no independently re-readable source file, so `handoff import` correctly refuses it as unverifiable; importing *into* an antigravity session (e.g. from a Claude or Codex handoff) is fully supported and is surfaced automatically on the next `session-start.js`.
+
 ## What hooks do
 
 | Event or script | Work performed when supported |
