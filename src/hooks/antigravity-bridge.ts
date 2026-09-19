@@ -13,6 +13,18 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..", "..");
 const WOLF_HOOKS = SCRIPT_DIR;
 
+// shared.ts's getProjectDir()/detectAgent() check these other agents' env
+// vars before OPENWOLF_PROJECT_ROOT/ANTIGRAVITY. If the bridge itself runs
+// nested inside one of those harnesses' own process tree, the inherited
+// vars would outrank ours and the spawned wolf hook would resolve the
+// wrong project root and/or attribute checkpoints to the wrong agent.
+const FOREIGN_AGENT_ENV_VARS = [
+  "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_PROJECT_DIR",
+  "CODEX_PROJECT_ROOT", "CODEX_SANDBOX", "CODEX_THREAD_ID",
+  "OPENCODE", "OPENCODE_PROJECT_ROOT",
+  "GROK_HOOK_EVENT", "GROK_SESSION_ID", "GROK_WORKSPACE_ROOT",
+];
+
 // Tool name mapping: Antigravity -> OpenWolf
 const TOOL_NAME_MAP: Record<string, string> = {
   view_file: "Read",
@@ -137,9 +149,12 @@ function runWolfHook(scriptName: string, stdinPayload: unknown, workspaceRoot: s
       }
     };
 
+    const childEnv = { ...process.env };
+    for (const key of FOREIGN_AGENT_ENV_VARS) delete childEnv[key];
+
     const child = cp.spawn("node", [scriptPath], {
       env: {
-        ...process.env,
+        ...childEnv,
         OPENWOLF_PROJECT_ROOT: workspaceRoot,
         ANTIGRAVITY: "1",
       },
