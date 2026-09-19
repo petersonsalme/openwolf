@@ -25,6 +25,19 @@ const FOREIGN_AGENT_ENV_VARS = [
   "GROK_HOOK_EVENT", "GROK_SESSION_ID", "GROK_WORKSPACE_ROOT",
 ];
 
+// Mirrors the `timeout` (seconds) registered for each event/subtype in
+// src/agents/antigravity.ts's buildAntigravityHooks(). The wolf hook it
+// spawns must be killed comfortably before Antigravity's own harness-level
+// timeout, or the bridge gets killed mid-run before it can even report a
+// partial result. A flat, shorter budget for every event starved
+// post-write/post-bash (registered at 10s) and anatomy updates for large
+// files were killed mid-run on every call.
+function hookTimeoutMs(event: string, subtype: string): number {
+  if (event === "PostToolUse" && (subtype === "write" || subtype === "bash")) return 9000;
+  if (event === "Stop") return 9000;
+  return 4500;
+}
+
 // Tool name mapping: Antigravity -> OpenWolf
 const TOOL_NAME_MAP: Record<string, string> = {
   view_file: "Read",
@@ -132,7 +145,7 @@ function readAllStdin(): Promise<string> {
   });
 }
 
-function runWolfHook(scriptName: string, stdinPayload: unknown, workspaceRoot: string): Promise<string> {
+function runWolfHook(scriptName: string, stdinPayload: unknown, workspaceRoot: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve) => {
     const scriptPath = path.join(WOLF_HOOKS, scriptName);
     if (!fs.existsSync(scriptPath)) {
@@ -171,7 +184,7 @@ function runWolfHook(scriptName: string, stdinPayload: unknown, workspaceRoot: s
         child.kill();
       } catch {}
       done(stdout);
-    }, 2000);
+    }, timeoutMs);
     timer.unref();
 
     try {
@@ -218,7 +231,7 @@ async function main(): Promise<void> {
       tool_input: toolInput,
     };
 
-    const rawOutput = await runWolfHook(wolfScript, wolfInput, workspaceRoot);
+    const rawOutput = await runWolfHook(wolfScript, wolfInput, workspaceRoot, hookTimeoutMs(event, subtype));
     let outputObj: Record<string, any> = {};
     try {
       outputObj = JSON.parse(rawOutput);
@@ -271,7 +284,7 @@ async function main(): Promise<void> {
         tool_input: cached.toolInput,
         tool_response: translateResponse(cached.toolName, extractToolResponse(agiPayload, tc)),
       };
-      await runWolfHook(wolfScript, wolfInput, workspaceRoot);
+      await runWolfHook(wolfScript, wolfInput, workspaceRoot, hookTimeoutMs(event, subtype));
     }
 
     process.stdout.write(JSON.stringify({}));
@@ -283,7 +296,7 @@ async function main(): Promise<void> {
       const wolfInput = {
         session_id: conversationId,
       };
-      const rawOutput = await runWolfHook("session-start.js", wolfInput, workspaceRoot);
+      const rawOutput = await runWolfHook("session-start.js", wolfInput, workspaceRoot, hookTimeoutMs(event, subtype));
       let outputObj: Record<string, any> = {};
       try {
         outputObj = JSON.parse(rawOutput);
@@ -313,7 +326,7 @@ async function main(): Promise<void> {
       session_id: conversationId,
       transcript_path: agiPayload.transcriptPath,
     };
-    await runWolfHook("stop.js", wolfInput, workspaceRoot);
+    await runWolfHook("stop.js", wolfInput, workspaceRoot, hookTimeoutMs(event, subtype));
     process.stdout.write(JSON.stringify({}));
     process.exit(0);
   }
