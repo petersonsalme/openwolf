@@ -6,6 +6,7 @@
 import * as cp from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -20,9 +21,27 @@ const TOOL_NAME_MAP: Record<string, string> = {
   run_command: "Bash",
 };
 
-function getCachePath(conversationId: string): string {
+// Cached under the project's own .wolf/ dir (not a shared, world-writable
+// temp dir) and written via a uniquely-named tmp file + rename so a
+// pre-planted symlink at the cache path can't be used to read or overwrite
+// an arbitrary file.
+function getCachePath(workspaceRoot: string, conversationId: string): string {
   const safeId = (conversationId || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
-  return path.join("/tmp", `openwolf-ag-last-tool-${safeId}.json`);
+  return path.join(workspaceRoot, ".wolf", "cache", `antigravity-last-tool-${safeId}.json`);
+}
+
+function writeCacheFile(cacheFile: string, data: unknown): void {
+  try {
+    fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+    const tmp = `${cacheFile}.${crypto.randomUUID()}.tmp`;
+    const fd = fs.openSync(tmp, "wx", 0o600);
+    try {
+      fs.writeFileSync(fd, JSON.stringify(data));
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tmp, cacheFile);
+  } catch {}
 }
 
 function translateArgs(toolName: string, args: Record<string, any> = {}): Record<string, any> {
@@ -142,23 +161,18 @@ async function main(): Promise<void> {
   const workspaceRoot = (agiPayload.workspacePaths && agiPayload.workspacePaths[0]) || PROJECT_ROOT;
   const tc = agiPayload.toolCall || {};
   const toolName = tc.name || "";
-  const cacheFile = getCachePath(conversationId);
+  const cacheFile = getCachePath(workspaceRoot, conversationId);
 
   if (event === "PreToolUse") {
     const wolfToolName = TOOL_NAME_MAP[toolName] || toolName;
     const toolInput = translateArgs(toolName, tc.args || {});
 
-    try {
-      fs.writeFileSync(
-        cacheFile,
-        JSON.stringify({
-          toolName,
-          wolfToolName,
-          toolInput,
-          stepIdx: agiPayload.stepIdx,
-        })
-      );
-    } catch {}
+    writeCacheFile(cacheFile, {
+      toolName,
+      wolfToolName,
+      toolInput,
+      stepIdx: agiPayload.stepIdx,
+    });
 
     const wolfScript = subtype === "write" ? "pre-write.js" : subtype === "bash" ? "pre-bash.js" : "pre-read.js";
     const wolfInput = {
