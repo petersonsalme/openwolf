@@ -802,7 +802,7 @@ export function isInsideDir(root: string, target: string): boolean {
 }
 
 /** realpath, tolerating a path whose leaf does not exist yet. */
-function realpathOrSelf(p: string): string {
+export function realpathOrSelf(p: string): string {
   try {
     return fs.realpathSync(p);
   } catch {}
