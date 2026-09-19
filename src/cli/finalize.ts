@@ -11,7 +11,7 @@ export function addFinalizeCommand(program: Command): void {
     .command("finalize")
     .description("Manually close a session for a harness with no automatic SessionEnd hook (e.g. Antigravity)")
     .requiredOption("--agent <agent>", `Agent to finalize (${NO_AUTO_SESSION_END_AGENTS.join(", ")})`)
-    .option("--session <id>", "Session id to finalize; defaults to the legacy single-session state file")
+    .option("--session <id>", 'Session id to finalize; defaults to "default", the conversation id the Antigravity bridge uses when none is supplied')
     .action(async (opts: { agent: string; session?: string }) => {
       if (!NO_AUTO_SESSION_END_AGENTS.includes(opts.agent)) {
         throw new Error(`Unknown finalize agent: ${opts.agent}. Only agents without an automatic SessionEnd hook need this command.`);
@@ -19,7 +19,12 @@ export function addFinalizeCommand(program: Command): void {
       const root = findProjectRoot();
       process.env.OPENWOLF_PROJECT_ROOT = root;
       const { finalizeSession } = await import("../hooks/session-end.js");
-      const hookInput = { session_id: opts.session };
+      // The bridge always sends session_id: conversationId, which defaults
+      // to "default" — never the legacy _session.json path that omitting
+      // session_id falls back to. Match that default here, or a bare
+      // `openwolf finalize --agent antigravity` always reported "no active
+      // session state found" (or finalized an unrelated legacy session).
+      const hookInput = { session_id: opts.session ?? "default" };
       let result;
       try {
         result = await finalizeSession(hookInput);
