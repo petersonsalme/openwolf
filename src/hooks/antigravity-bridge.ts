@@ -75,12 +75,19 @@ function writeCacheFile(cacheFile: string, data: unknown): void {
 
 function translateArgs(toolName: string, args: Record<string, any> = {}): Record<string, any> {
   switch (toolName) {
-    case "view_file":
+    case "view_file": {
+      // OpenWolf's `limit` is a line COUNT (offset + limit lines), while
+      // Antigravity's EndLine is an absolute line number; passing EndLine
+      // straight through as `limit` requested far more lines than intended
+      // for any view starting past line 1.
+      const startLine = args.StartLine !== undefined ? args.StartLine : undefined;
+      const endLine = args.EndLine !== undefined ? args.EndLine : undefined;
       return {
         file_path: args.AbsolutePath || args.file_path || "",
-        offset: args.StartLine !== undefined ? args.StartLine : undefined,
-        limit: args.EndLine !== undefined ? args.EndLine : undefined,
+        offset: startLine,
+        limit: startLine !== undefined && endLine !== undefined ? endLine - startLine + 1 : endLine,
       };
+    }
     case "write_to_file":
       return {
         file_path: args.TargetFile || args.file_path || "",
