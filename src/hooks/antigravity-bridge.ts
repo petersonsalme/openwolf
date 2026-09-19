@@ -187,14 +187,13 @@ async function main(): Promise<void> {
     if (specific.additionalContext) {
       process.stdout.write(
         JSON.stringify({
-          decision: "allow",
           reason: specific.additionalContext,
         })
       );
       process.exit(0);
     }
 
-    process.stdout.write(JSON.stringify({ decision: "allow" }));
+    process.stdout.write(JSON.stringify({}));
     process.exit(0);
   }
 
@@ -260,11 +259,11 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  process.stdout.write(JSON.stringify({ decision: "allow" }));
+  process.stdout.write(JSON.stringify({}));
   process.exit(0);
 }
 
 main().catch(() => {
-  process.stdout.write(JSON.stringify({ decision: "allow" }));
+  process.stdout.write(JSON.stringify({}));
   process.exit(0);
 });
